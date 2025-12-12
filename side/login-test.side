@@ -1,0 +1,98 @@
+{
+  "id": "login-test",
+  "version": "2.0",
+  "name": "Login Test - ${TEST_USERNAME}",
+  "url": "${TEST_URL}",
+  "tests": [
+    {
+      "id": "login-test-case",
+      "name": "Login with username ${TEST_USERNAME} and empty password",
+      "commands": [
+        {
+          "id": "open-url",
+          "comment": "Navigate to the CMS login page",
+          "command": "open",
+          "target": "${TEST_URL}",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "wait-for-page",
+          "comment": "Wait for the page to load",
+          "command": "waitForPageToLoad",
+          "target": "30000",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "type-username",
+          "comment": "Input username from environment variable",
+          "command": "type",
+          "target": "id=username",
+          "targets": [
+            ["id=username", "id"],
+            ["name=username", "name"],
+            ["css=#username", "css:finder"],
+            ["xpath=//input[@id='username']", "xpath:idRelative"],
+            ["xpath=//input[@name='username']", "xpath:name"],
+            ["xpath=//input[@type='text' and contains(@placeholder,'user')]", "xpath:attributes"],
+            ["xpath=//input[@type='text']", "xpath:attributes"]
+          ],
+          "value": "${TEST_USERNAME}"
+        },
+        {
+          "id": "type-password",
+          "comment": "Leave password field empty (clear any existing value)",
+          "command": "type",
+          "target": "id=password",
+          "targets": [
+            ["id=password", "id"],
+            ["name=password", "name"],
+            ["css=#password", "css:finder"],
+            ["xpath=//input[@id='password']", "xpath:idRelative"],
+            ["xpath=//input[@name='password']", "xpath:name"],
+            ["xpath=//input[@type='password']", "xpath:attributes"]
+          ],
+          "value": ""
+        },
+        {
+          "id": "submit-form",
+          "comment": "Submit the login form",
+          "command": "click",
+          "target": "css=input[type='submit']",
+          "targets": [
+            ["css=input[type='submit']", "css:finder"],
+            ["xpath=//input[@type='submit']", "xpath:attributes"],
+            ["xpath=//button[@type='submit']", "xpath:attributes"],
+            ["xpath=//button[contains(text(),'Login')]", "xpath:innerText"],
+            ["xpath=//button[contains(text(),'Sign in')]", "xpath:innerText"],
+            ["xpath=//button[contains(text(),'Submit')]", "xpath:innerText"],
+            ["id=submit", "id"],
+            ["name=submit", "name"]
+          ],
+          "value": ""
+        },
+        {
+          "id": "wait-after-submit",
+          "comment": "Wait for form submission to complete",
+          "command": "waitForPageToLoad",
+          "target": "30000",
+          "targets": [],
+          "value": ""
+        }
+      ]
+    }
+  ],
+  "suites": [
+    {
+      "id": "default-suite",
+      "name": "Default Suite",
+      "persistSession": false,
+      "parallel": false,
+      "timeout": 300,
+      "tests": ["login-test-case"]
+    }
+  ],
+  "urls": ["${TEST_URL}"],
+  "plugins": []
+}

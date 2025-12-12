@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Selenium browser container (Chrome)
+  selenium-browser:
+    image: selenium/standalone-chrome:latest
+    container_name: selenium-browsers
+    shm_size: 2g
+    ports:
+      - "4444:4444"
+      - "7900:7900"  # VNC port for viewing browser (optional)
+    networks:
+      - selenium-tests
+    environment:
+      - VNC_NO_PASSWORD=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/wd/hub/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Selenium side runner container
+  selenium-side-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: selenium-side-runner
+    depends_on:
+      selenium-browser:
+        condition: service_healthy
+    networks:
+      - selenium-tests
+    volumes:
+      - ./side:/app/side  # Mount directory containing .side files
+    env_file:
+      - .env  # Load environment variables from .env file
+    environment:
+      - SELENIUM_SERVER=http://selenium-browser:4444/wd/hub
+      # TEST_URL and TEST_USERNAME are loaded from .env file
+    command: >
+      sh -c "
+        if [ -z \"$$TEST_FILE\" ]; then
+          echo 'No TEST_FILE specified. Available .side files:'
+          ls -la /app/side/*.side 2>/dev/null || echo 'No .side files found in /app/side directory'
+        else
+          selenium-side-runner -w 10 --server $$SELENIUM_SERVER /app/side/$$TEST_FILE
+        fi
+      "
+
+networks:
+  selenium-tests:
+    driver: bridge
