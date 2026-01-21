@@ -1,142 +1,390 @@
-# Selenium Side Runner Docker Setup
+# Containerized Selenium Side Runner Testing Platform
 
-This setup creates two Docker containers:
-1. **selenium-browser**: A standalone Chrome browser container using SeleniumHQ's official image
-2. **selenium-side-runner**: A container that runs Selenium IDE test files (.side) against the browser container
+A Docker-based end-to-end testing platform using `selenium-side-runner` to execute Selenium IDE test files (.side) against locally hosted applications.
+
+## Overview
+
+This platform provides a containerized environment for running Selenium IDE test suites. It automatically discovers and executes all `.side` files in a specified directory, making it ideal for CI/CD pipelines or local testing workflows.
+
+## Features
+
+- 🐳 Fully containerized with Docker
+- 🔍 Automatic discovery of all `.side` files in a directory
+- 🌐 Network access to locally hosted applications
+- 📊 Test execution summary with pass/fail counts
+- ⚙️ Configurable via environment variables
+- 🔒 Version-pinned dependencies for predictable test environments
 
 ## Prerequisites
 
 - Docker and Docker Compose installed
 - Selenium IDE test files (.side format)
+- A locally hosted application to test (or accessible via network)
 
-## Setup
+## Quick Start
 
-### 1. Create Environment File
-
-Create a `.env` file in the project root directory with your test configuration:
+### 1. Build the Docker Image
 
 ```bash
-# Copy the example and edit with your values
+docker build -t selenium-test-runner .
+```
+
+Or build with specific versions:
+
+```bash
+docker build \
+  --build-arg CHROME_VERSION=131.0.6778.85-1 \
+  --build-arg SELENIUM_SIDE_RUNNER_VERSION=4.0.0 \
+  -t selenium-test-runner .
+```
+
+Or using Docker Compose:
+
+```bash
+docker-compose build
+```
+
+### 2. Prepare Your Test Files
+
+Create a directory containing your `.side` files:
+
+```bash
+mkdir tests
+# Copy your .side files to the tests directory
+cp /path/to/your/tests/*.side tests/
+```
+
+### 3. Run Tests
+
+#### Option A: Using Docker Run
+
+```bash
+docker run --rm \
+  -e TEST_PATH=/tests \
+  -v "$(pwd)/tests:/tests:ro" \
+  --network host \
+  selenium-test-runner
+```
+
+#### Option B: Using Docker Compose
+
+1. Create a `.env` file (or copy from `.env.example`):
+
+```bash
 cp .env.example .env
 ```
 
-Or create a `.env` file manually with the following content:
+2. Edit `.env` and set your `TEST_PATH` and optionally `BASE_URL`:
 
 ```env
-# Application URL
-TEST_URL=http://cvlueitapp1.cscdev.com:17991/cms/
-
-# Test Username
-TEST_USERNAME=vbindiga
+TEST_PATH=./tests
+BASE_URL=http://localhost:3000
 ```
 
-**Important**: Update the values in `.env` with your actual test URL and username. The `.env` file is used by the test files to substitute variables.
-
-### 2. Place your .side files
-
-Place your Selenium IDE test files (`.side` files) in the `side` directory:
-
-```
-side/
-  ├── login-test.side
-  ├── test2.side
-  └── ...
-```
-
-## Usage
-
-### 1. Start the containers
-
-Start the Docker containers in detached mode:
+3. Run the tests:
 
 ```bash
-docker-compose up -d
-```
-
-This will:
-- Start the browser container (selenium-browser)
-- Wait for it to be healthy
-- Start the selenium-side-runner container
-
-### 2. Run a specific test file
-
-To run a specific test file, set the `TEST_FILE` environment variable:
-
-```bash
-docker-compose run --rm selenium-side-runner -e TEST_FILE=login-test.side
-```
-
-Or run directly with selenium-side-runner:
-
-```bash
-docker-compose exec selenium-side-runner selenium-side-runner -w 10 --server http://selenium-browser:4444/wd/hub /app/side/login-test.side
-```
-
-**Note**: The test will automatically use the `TEST_URL` and `TEST_USERNAME` values from your `.env` file.
-
-### 3. View browser (optional)
-
-If you want to watch the browser in action, you can access the VNC viewer at:
-- URL: `http://localhost:7900`
-- Password: (none, as VNC_NO_PASSWORD=1)
-
-### 4. Stop the containers
-
-```bash
-docker-compose down
+docker-compose up
 ```
 
 ## Configuration
 
 ### Environment Variables
 
-The following environment variables are loaded from the `.env` file:
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `TEST_PATH` | Path to directory containing .side files | `/tests` | Yes |
+| `BASE_URL` | Base URL of the application being tested (e.g., `http://localhost:3000`) | None | No |
 
-- `TEST_URL`: The base URL for your application (e.g., `http://cvlueitapp1.cscdev.com:17991/cms/`)
-- `TEST_USERNAME`: The username to use in login tests (e.g., `vbindiga`)
+### Application URL Configuration
 
-Additional environment variables:
+The hostname and port of your application can be configured in two ways:
 
-- `SELENIUM_SERVER`: The Selenium Grid hub URL (default: `http://selenium-browser:4444/wd/hub`)
-- `TEST_FILE`: Name of the .side file to run (should be in the `side` directory)
+#### Option 1: Using BASE_URL Environment Variable (Recommended)
 
-### Volumes
+Set the `BASE_URL` environment variable to override the base URL for all tests:
 
-- `./side:/app/side`: Maps your local `side` directory to the container's `/app/side` directory
+```bash
+# Using Docker Run
+docker run --rm \
+  -e TEST_PATH=/tests \
+  -e BASE_URL=http://localhost:3000 \
+  -v "$(pwd)/tests:/tests:ro" \
+  --network host \
+  selenium-test-runner
+```
 
-### Ports
+```bash
+# Using Docker Compose (.env file)
+TEST_PATH=./tests
+BASE_URL=http://localhost:3000
+```
 
-- `4444`: Selenium Grid hub port
-- `7900`: VNC port for viewing the browser (optional)
+#### Option 2: Defined in .side Files
 
-## Architecture
+The base URL can also be defined directly in your Selenium IDE test files (.side). When you create tests in Selenium IDE, you specify the base URL. This URL will be used unless overridden by the `BASE_URL` environment variable.
 
-The setup follows the recommended architecture from [Stack Overflow](https://stackoverflow.com/questions/61496129/how-to-run-selenium-side-runner-in-docker):
+**Note**: If `BASE_URL` is set, it will override any base URL defined in the .side files.
 
-- **Separation of concerns**: Browser and test runner are in separate containers
-- **Network communication**: Both containers communicate through a custom Docker network (`selenium-tests`)
-- **Health checks**: The runner waits for the browser to be healthy before starting
+### Network Configuration
 
-## How Environment Variables Work
+The platform uses `host` network mode by default to access applications running on `localhost`. This allows you to test applications running on your local machine.
 
-The test files (`.side`) use variable substitution syntax `${VARIABLE_NAME}` to reference environment variables. When selenium-side-runner executes the tests, it automatically substitutes these variables with values from the environment.
+#### Testing Local Applications
 
-For example, in `login-test.side`:
-- `${TEST_URL}` is replaced with the value from your `.env` file
-- `${TEST_USERNAME}` is replaced with the value from your `.env` file
+If your application runs on `localhost:3000`, the container can access it directly when using `network_mode: host`.
 
-This allows you to:
-- Run the same tests against different environments by changing the `.env` file
-- Use different usernames without modifying the test files
-- Keep sensitive or environment-specific data out of version control
+#### Testing Applications in Other Containers
+
+If your application runs in another Docker container:
+
+1. **Option 1**: Use Docker Compose with a shared network:
+
+```yaml
+version: '3.8'
+
+services:
+  selenium-tests:
+    # ... existing config ...
+    networks:
+      - test-network
+  
+  your-app:
+    # ... your app config ...
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
+```
+
+2. **Option 2**: Use `extra_hosts` to access host machine:
+
+```yaml
+extra_hosts:
+  - "host.docker.internal:host-gateway"
+```
+
+Then access your app via `http://host.docker.internal:PORT`.
+
+## Directory Structure
+
+```
+optimum-test-framework/
+├── Dockerfile              # Container definition
+├── docker-compose.yml      # Docker Compose configuration
+├── entrypoint.sh          # Test execution script
+├── .dockerignore          # Files to exclude from build
+├── .env.example           # Example environment variables
+├── README.md              # This file
+└── tests/                 # Your .side test files (create this)
+    ├── login-test.side
+    ├── checkout-test.side
+    └── ...
+```
+
+## How It Works
+
+1. **Container Build**: The Dockerfile sets up Node.js, Chrome browser, and selenium-side-runner
+2. **Test Discovery**: The entrypoint script scans `TEST_PATH` for all `.side` files
+3. **Test Execution**: Each `.side` file is executed sequentially using selenium-side-runner
+4. **Results**: A summary is displayed showing passed/failed test counts
+
+## Example Usage
+
+### Basic Test Run
+
+```bash
+# Set your test directory
+export TEST_PATH=/path/to/my/tests
+
+# Run tests
+docker run --rm \
+  -e TEST_PATH=$TEST_PATH \
+  -e BASE_URL=http://localhost:3000 \
+  -v "$TEST_PATH:$TEST_PATH:ro" \
+  --network host \
+  selenium-test-runner
+```
+
+### With Docker Compose
+
+```bash
+# Edit .env file
+echo "TEST_PATH=./my-tests" > .env
+
+# Run tests
+docker-compose up
+```
+
+### CI/CD Integration
+
+```yaml
+# Example GitHub Actions workflow
+name: E2E Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Build test image
+        run: docker build -t selenium-test-runner .
+      
+      - name: Run tests
+        run: |
+          docker run --rm \
+            -e TEST_PATH=/tests \
+            -v ${{ github.workspace }}/tests:/tests:ro \
+            --network host \
+            selenium-test-runner
+```
 
 ## Troubleshooting
 
-1. **Browser container not starting**: Check logs with `docker-compose logs selenium-browser`
-2. **Tests not connecting**: Verify the network is created: `docker network ls | grep selenium-tests`
-3. **No .side files found**: Ensure your test files are in the `side` directory with `.side` extension
-4. **Environment variables not working**: 
-   - Ensure you have a `.env` file in the project root
-   - Verify the variable names match exactly (case-sensitive)
-   - Check that the `.env` file is not in `.gitignore` if you need it (though typically `.env` should be gitignored)
-5. **Variable substitution errors**: Make sure your `.env` file has both `TEST_URL` and `TEST_USERNAME` defined
+### Tests Can't Connect to Local Application
+
+**Problem**: Container can't reach your localhost application.
+
+**Solutions**:
+- Ensure `network_mode: host` is set in docker-compose.yml
+- Verify your application is running and accessible
+- Check firewall settings
+- Try using `host.docker.internal` instead of `localhost` in your test files
+
+### No .side Files Found
+
+**Problem**: Script reports no .side files found.
+
+**Solutions**:
+- Verify `TEST_PATH` is correctly set
+- Check that the directory is mounted correctly (`-v` flag)
+- Ensure files have `.side` extension
+- Check file permissions
+
+### Chrome/Chromium Issues
+
+**Problem**: Chrome fails to start in container.
+
+**Solutions**:
+- Ensure all required dependencies are installed (handled in Dockerfile)
+- Check if running in headless mode is needed (selenium-side-runner handles this)
+- Verify sufficient memory allocation for Docker
+
+### Permission Denied
+
+**Problem**: Entrypoint script can't execute.
+
+**Solutions**:
+- Ensure `entrypoint.sh` has execute permissions (handled in Dockerfile)
+- Check Docker volume mount permissions
+
+### Chrome Version Not Available
+
+**Problem**: Docker build fails with "Unable to locate package google-chrome-stable=VERSION".
+
+**Solutions**:
+- Check available Chrome versions by building a temporary container:
+  ```bash
+  docker run --rm node:18-slim bash -c "apt-get update && apt-get install -y wget gnupg && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' >> /etc/apt/sources.list.d/google.list && apt-get update && apt-cache madison google-chrome-stable"
+  ```
+- Use a version that's available in the repository
+- Alternatively, remove the version pin and use the latest stable version (not recommended for production)
+
+## Version Pinning & Predictable Environments
+
+### Why Version Pinning Matters
+
+To ensure consistent and reproducible test results, all dependencies are pinned to specific versions:
+
+- **Node.js**: Pinned to version 18 (via `node:18-slim` base image)
+- **Chrome**: Pinned to a specific version (default: `131.0.6778.85-1`)
+- **selenium-side-runner**: Pinned to a specific version (default: `4.0.0`)
+
+### Customizing Versions
+
+You can override versions at build time using build arguments:
+
+```bash
+docker build \
+  --build-arg CHROME_VERSION=131.0.6778.85-1 \
+  --build-arg SELENIUM_SIDE_RUNNER_VERSION=4.0.0 \
+  -t selenium-test-runner .
+```
+
+### Finding Available Versions
+
+- **Chrome versions**: Check [Google Chrome Releases](https://chromereleases.googleblog.com/) or query available versions:
+  ```bash
+  apt-cache madison google-chrome-stable
+  ```
+
+- **selenium-side-runner versions**: Check [npm registry](https://www.npmjs.com/package/selenium-side-runner?activeTab=versions)
+
+### Ensuring Consistent Test Environments
+
+1. **Use the same image tag**: Always use the same Docker image tag in your CI/CD pipeline
+2. **Pin versions explicitly**: Use build arguments to pin versions when building
+3. **Document versions**: Keep track of which versions work with your tests
+4. **Test version upgrades**: When updating versions, test thoroughly before deploying
+5. **Tag your images**: Build once and tag with a version number
+
+**Best Practice**: Build your image once with specific versions, tag it with a version (e.g., `selenium-test-runner:v1.0.0`), and reuse that exact image for all test runs:
+
+```bash
+# Build with specific versions
+docker build \
+  --build-arg CHROME_VERSION=131.0.6778.85-1 \
+  --build-arg SELENIUM_SIDE_RUNNER_VERSION=4.0.0 \
+  -t selenium-test-runner:v1.0.0 \
+  -t selenium-test-runner:latest .
+
+# Use the tagged version in your CI/CD
+docker run --rm selenium-test-runner:v1.0.0
+```
+
+This ensures that every test run uses the exact same browser version and selenium-side-runner version, eliminating environment-related test failures.
+
+## Advanced Configuration
+
+### Custom Selenium Side Runner Options
+
+You can modify `entrypoint.sh` to pass additional options to selenium-side-runner:
+
+```bash
+selenium-side-runner --server http://selenium-hub:4444 "$side_file"
+```
+
+### Parallel Execution
+
+For parallel test execution, you can modify the entrypoint script to use background processes or use multiple containers with different test subsets.
+
+### Test Reports
+
+To generate test reports, you can mount a volume for output:
+
+```bash
+docker run --rm \
+  -e TEST_PATH=/tests \
+  -v "$(pwd)/tests:/tests:ro" \
+  -v "$(pwd)/reports:/reports" \
+  --network host \
+  selenium-test-runner
+```
+
+Then modify `entrypoint.sh` to output results to `/reports`.
+
+## License
+
+This project is provided as-is for testing purposes.
+
+## Support
+
+For issues related to:
+- **Selenium IDE**: [Selenium IDE Documentation](https://www.selenium.dev/selenium-ide/)
+- **selenium-side-runner**: [selenium-side-runner GitHub](https://github.com/SeleniumHQ/selenium-ide/tree/master/packages/side-runner)
+- **Docker**: [Docker Documentation](https://docs.docker.com/)
