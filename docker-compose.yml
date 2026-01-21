@@ -5,6 +5,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Override versions if needed
+        # SELENIUM_NODE_CHROME_VERSION: 4.27.0-20241218
+        # SELENIUM_SIDE_RUNNER_VERSION: 4.0.0
     container_name: selenium-test-runner
     environment:
       - TEST_PATH=${TEST_PATH:-/tests}
@@ -20,5 +24,7 @@ services:
     # Alternative: use bridge network and set extra_hosts if needed
     # extra_hosts:
     #   - "host.docker.internal:host-gateway"
+    # Required for Chrome to work properly in Docker
+    shm_size: 2g
     stdin_open: true
     tty: true

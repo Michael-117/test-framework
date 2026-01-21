@@ -1,57 +1,28 @@
-# Pin Node.js version for predictable environment
-FROM node:18-slim
+# Use Selenium Node Chrome image which includes Chrome and ChromeDriver pre-installed
+# Pin the image version for predictable Chrome/ChromeDriver versions
+# Check available versions at: https://hub.docker.com/r/selenium/node-chrome/tags
+ARG SELENIUM_NODE_CHROME_VERSION=4.27.0-20241218
+FROM selenium/node-chrome:${SELENIUM_NODE_CHROME_VERSION}
 
-# Pin Chrome and selenium-side-runner versions via build arguments
-# These can be overridden at build time for different versions
-ARG CHROME_VERSION=131.0.6778.85-1
+# Switch to root to install Node.js and selenium-side-runner
+USER root
+
+# Install Node.js 18 (selenium/node-chrome doesn't include Node.js)
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin selenium-side-runner version via build argument
 ARG SELENIUM_SIDE_RUNNER_VERSION=4.0.0
-
-# Install dependencies for Chrome/Chromium
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
-    fonts-liberation \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libatspi2.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libwayland-client0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxkbcommon0 \
-    libxrandr2 \
-    xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install specific Chrome version
-# Note: If the exact version is not available, the build will fail
-# Check available versions with: apt-cache madison google-chrome-stable
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable=${CHROME_VERSION} \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify Chrome version matches expected version
-RUN CHROME_INSTALLED=$(google-chrome --version | awk '{print $3}') \
-    && echo "Installed Chrome version: $CHROME_INSTALLED" \
-    && echo "Expected Chrome version: ${CHROME_VERSION%%-*}" \
-    && google-chrome --version
 
 # Install specific selenium-side-runner version
 RUN npm install -g selenium-side-runner@${SELENIUM_SIDE_RUNNER_VERSION}
 
-# Verify selenium-side-runner version
-RUN selenium-side-runner --version
+# Verify versions
+RUN echo "Chrome version:" && google-chrome --version \
+    && echo "ChromeDriver version:" && chromedriver --version \
+    && echo "Node.js version:" && node --version \
+    && echo "selenium-side-runner version:" && selenium-side-runner --version
 
 # Create app directory
 WORKDIR /app
@@ -59,6 +30,11 @@ WORKDIR /app
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+# Note: Running as root is fine for selenium-side-runner
+# The selenium/node-chrome image runs as 'selenium' user by default,
+# but we need root to install Node.js and npm packages
+# selenium-side-runner will work correctly as root
 
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

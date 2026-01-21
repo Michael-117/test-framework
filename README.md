@@ -33,7 +33,7 @@ Or build with specific versions:
 
 ```bash
 docker build \
-  --build-arg CHROME_VERSION=131.0.6778.85-1 \
+  --build-arg SELENIUM_NODE_CHROME_VERSION=4.27.0-20241218 \
   --build-arg SELENIUM_SIDE_RUNNER_VERSION=4.0.0 \
   -t selenium-test-runner .
 ```
@@ -60,6 +60,7 @@ cp /path/to/your/tests/*.side tests/
 
 ```bash
 docker run --rm \
+  --shm-size=2g \
   -e TEST_PATH=/tests \
   -v "$(pwd)/tests:/tests:ro" \
   --network host \
@@ -201,6 +202,7 @@ export TEST_PATH=/path/to/my/tests
 
 # Run tests
 docker run --rm \
+  --shm-size=2g \
   -e TEST_PATH=$TEST_PATH \
   -e BASE_URL=http://localhost:3000 \
   -v "$TEST_PATH:$TEST_PATH:ro" \
@@ -238,6 +240,7 @@ jobs:
       - name: Run tests
         run: |
           docker run --rm \
+            --shm-size=2g \
             -e TEST_PATH=/tests \
             -v ${{ github.workspace }}/tests:/tests:ro \
             --network host \
@@ -285,15 +288,12 @@ jobs:
 
 ### Chrome Version Not Available
 
-**Problem**: Docker build fails with "Unable to locate package google-chrome-stable=VERSION".
+**Problem**: Docker build fails with image version issues.
 
 **Solutions**:
-- Check available Chrome versions by building a temporary container:
-  ```bash
-  docker run --rm node:18-slim bash -c "apt-get update && apt-get install -y wget gnupg && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' >> /etc/apt/sources.list.d/google.list && apt-get update && apt-cache madison google-chrome-stable"
-  ```
-- Use a version that's available in the repository
-- Alternatively, remove the version pin and use the latest stable version (not recommended for production)
+- Check available Selenium Node Chrome image versions at [Docker Hub](https://hub.docker.com/r/selenium/node-chrome/tags)
+- Each Selenium image version includes a specific Chrome and ChromeDriver version
+- Use a valid image tag version in the `SELENIUM_NODE_CHROME_VERSION` build argument
 
 ## Version Pinning & Predictable Environments
 
@@ -301,9 +301,22 @@ jobs:
 
 To ensure consistent and reproducible test results, all dependencies are pinned to specific versions:
 
-- **Node.js**: Pinned to version 18 (via `node:18-slim` base image)
-- **Chrome**: Pinned to a specific version (default: `131.0.6778.85-1`)
+- **Chrome & ChromeDriver**: Pinned via `selenium/node-chrome` image version (default: `4.27.0-20241218`)
+- **Node.js**: Pinned to version 18 (installed on top of Selenium image)
 - **selenium-side-runner**: Pinned to a specific version (default: `4.0.0`)
+
+### Using Pre-built Images
+
+This Dockerfile uses the official `selenium/node-chrome` image as a base, which includes:
+- ✅ Chrome browser pre-installed
+- ✅ ChromeDriver pre-installed and matched to Chrome version
+- ✅ All required dependencies and libraries
+- ✅ Version-pinned via image tag
+
+**Benefits:**
+- Faster builds (no Chrome download/installation)
+- More reliable (Chrome and ChromeDriver versions are guaranteed to match)
+- Less maintenance (Selenium team manages Chrome compatibility)
 
 ### Customizing Versions
 
@@ -311,17 +324,17 @@ You can override versions at build time using build arguments:
 
 ```bash
 docker build \
-  --build-arg CHROME_VERSION=131.0.6778.85-1 \
+  --build-arg SELENIUM_NODE_CHROME_VERSION=4.27.0-20241218 \
   --build-arg SELENIUM_SIDE_RUNNER_VERSION=4.0.0 \
   -t selenium-test-runner .
 ```
 
 ### Finding Available Versions
 
-- **Chrome versions**: Check [Google Chrome Releases](https://chromereleases.googleblog.com/) or query available versions:
-  ```bash
-  apt-cache madison google-chrome-stable
-  ```
+- **Selenium Node Chrome images**: Check [Docker Hub tags](https://hub.docker.com/r/selenium/node-chrome/tags)
+  - Each tag includes specific Chrome and ChromeDriver versions
+  - Format: `MAJOR.MINOR.PATCH-DATE` (e.g., `4.27.0-20241218`)
+  - Check release notes for Chrome/ChromeDriver versions included
 
 - **selenium-side-runner versions**: Check [npm registry](https://www.npmjs.com/package/selenium-side-runner?activeTab=versions)
 
@@ -338,14 +351,16 @@ docker build \
 ```bash
 # Build with specific versions
 docker build \
-  --build-arg CHROME_VERSION=131.0.6778.85-1 \
+  --build-arg SELENIUM_NODE_CHROME_VERSION=4.27.0-20241218 \
   --build-arg SELENIUM_SIDE_RUNNER_VERSION=4.0.0 \
   -t selenium-test-runner:v1.0.0 \
   -t selenium-test-runner:latest .
 
 # Use the tagged version in your CI/CD
-docker run --rm selenium-test-runner:v1.0.0
+docker run --rm --shm-size=2g selenium-test-runner:v1.0.0
 ```
+
+**Note**: The `--shm-size=2g` flag is required when using `docker run` directly (it's already configured in docker-compose.yml). This prevents Chrome from crashing due to insufficient shared memory.
 
 This ensures that every test run uses the exact same browser version and selenium-side-runner version, eliminating environment-related test failures.
 
@@ -369,6 +384,7 @@ To generate test reports, you can mount a volume for output:
 
 ```bash
 docker run --rm \
+  --shm-size=2g \
   -e TEST_PATH=/tests \
   -v "$(pwd)/tests:/tests:ro" \
   -v "$(pwd)/reports:/reports" \
